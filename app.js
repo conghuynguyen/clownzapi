@@ -11,7 +11,7 @@ const cors = require('cors');
 // SocketIo
 const io = require('socket.io')(sever, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: 'https://conghuynguyen.cf',
     methods: ['GET', 'POST', 'DELETE', 'PUT'],
     allowedHeaders: [
       'Access-Control-Allow-Origin',
@@ -41,7 +41,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.json());
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
+  res.header('Access-Control-Allow-Origin', 'https://conghuynguyen.cf');
   res.header(
     'Access-Control-Header',
     'Origin, X-Requested-With, Content-Type, Accept, Authorization'
