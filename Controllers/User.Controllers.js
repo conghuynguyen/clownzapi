@@ -1,17 +1,14 @@
-const createError = require("http-errors");
-const mongoose = require("mongoose");
-const cloudinary = require("cloudinary");
-const bcrypt = require("bcrypt");
-const JWT = require("jsonwebtoken");
-const { google } = require("googleapis");
+const createError = require('http-errors');
+const mongoose = require('mongoose');
+const cloudinary = require('cloudinary');
+const bcrypt = require('bcrypt');
+const JWT = require('jsonwebtoken');
+const { google } = require('googleapis');
 const { OAuth2 } = google.auth;
-
-const sendEmail = require("./sendMail");
-const {
-  signRefreshToken,
-  signAccessToken,
-  verilyRefreshToken,
-} = require("../helpers/jwt_helpers");
+// fix
+const { OAuth2Client } = require('google-auth-library');
+const sendEmail = require('./sendMail');
+const { signRefreshToken, signAccessToken, verilyRefreshToken } = require('../helpers/jwt_helpers');
 
 const {
   MAILING_SERVICE_CLIENT_ID,
@@ -22,9 +19,10 @@ const {
   CLOUDINARY_API_SECRET,
 } = process.env;
 
-const client = new OAuth2(MAILING_SERVICE_CLIENT_ID);
-const Comment = require("../Model/Comment");
-const User = require("../Model/User");
+//const client = new OAuth2(MAILING_SERVICE_CLIENT_ID);
+const client = new OAuth2Client(MAILING_SERVICE_CLIENT_ID);
+const Comment = require('../Model/Comment');
+const User = require('../Model/User');
 
 cloudinary.config({
   cloud_name: CLOUD_NAME,
@@ -37,17 +35,15 @@ module.exports = {
     try {
       const { email, name, password } = req.body;
       const doseExists = await User.findOne({ email: email });
-      if (doseExists)
-        return res.status(400).json({ message: "tài khoản này tồn tại" });
-      if (!password)
-        return res.status(400).json({ message: "vui lòng điền mật khẩu" });
+      if (doseExists) return res.status(400).json({ message: 'tài khoản này tồn tại' });
+      if (!password) return res.status(400).json({ message: 'vui lòng điền mật khẩu' });
       const passwordHash = await bcrypt.hash(password, 12);
       const newUser = { name, email, password: passwordHash };
       const accessToken = createActivationToken(newUser);
       const url = `${CLIENT_URL}/user/active-email/${accessToken}`;
-      sendEmail(email, url, "Click xác nhận địa chỉ email của bạn");
+      sendEmail(email, url, 'Click xác nhận địa chỉ email của bạn');
       res.status(200).json({
-        message: "Xác minh địa chỉ email của bạn",
+        message: 'Xác minh địa chỉ email của bạn',
       });
     } catch (error) {
       console.log(error);
@@ -64,8 +60,7 @@ module.exports = {
         requiredAudience: MAILING_SERVICE_CLIENT_ID,
       });
       const { email_verified, email, name, picture } = verify.payload;
-      if (!email_verified)
-        return res.status(400).json({ msg: "Email verification failed." });
+      if (!email_verified) return res.status(400).json({ msg: 'Email verification failed.' });
       const user = await User.findOne({ email: email });
       const password = email;
       const passwordHash = await bcrypt.hash(password, 12);
@@ -115,13 +110,9 @@ module.exports = {
     try {
       const { email, password } = req.body;
       const user = await User.findOne({ email: email.toLowerCase().trim() });
-      if (!user)
-        return res
-          .status(400)
-          .json({ message: " Tài khoản này không tồn tại" });
+      if (!user) return res.status(400).json({ message: ' Tài khoản này không tồn tại' });
       const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch)
-        return res.status(400).json({ message: "Mật khẩu không đúng" });
+      if (!isMatch) return res.status(400).json({ message: 'Mật khẩu không đúng' });
       const accessToken = await signAccessToken(user);
       const refreshToken = await signRefreshToken(user);
       const userResult = await User.findById(user._id);
@@ -155,48 +146,36 @@ module.exports = {
       const { id } = req.data;
       const options = { new: true };
       const file = req.file;
-      cloudinary.v2.uploader.upload(
-        file.path,
-        { folder: "test" },
-        async (error, result) => {
-          if (result) {
-            const userSave = {
-              avatar: result.url,
-            };
-            const update = {
-              avatar: result.url,
-            };
-            const user = await User.findByIdAndUpdate(id, userSave, options);
-            const comment = await Comment.updateMany(
-              { id_user: id },
-              update,
-              options
-            );
-            const dataReply = await Comment.find();
-            for (let index = 0; index < dataReply.length; index++) {
-              const reply = Array.from(dataReply[index].reply);
-              if (reply.length > 0) {
-                for (let j = 0; j < reply.length; j++) {
-                  const element = reply[j];
-                  if (element.id_user === id) {
-                    element.avatar = result.url;
-                    const id_array = dataReply[index]._id;
-                    await Comment.findByIdAndUpdate(
-                      id_array,
-                      { reply: reply },
-                      options
-                    );
-                  }
+      cloudinary.v2.uploader.upload(file.path, { folder: 'test' }, async (error, result) => {
+        if (result) {
+          const userSave = {
+            avatar: result.url,
+          };
+          const update = {
+            avatar: result.url,
+          };
+          const user = await User.findByIdAndUpdate(id, userSave, options);
+          const comment = await Comment.updateMany({ id_user: id }, update, options);
+          const dataReply = await Comment.find();
+          for (let index = 0; index < dataReply.length; index++) {
+            const reply = Array.from(dataReply[index].reply);
+            if (reply.length > 0) {
+              for (let j = 0; j < reply.length; j++) {
+                const element = reply[j];
+                if (element.id_user === id) {
+                  element.avatar = result.url;
+                  const id_array = dataReply[index]._id;
+                  await Comment.findByIdAndUpdate(id_array, { reply: reply }, options);
                 }
               }
             }
-            res.json({
-              user: user,
-              comment: comment,
-            });
           }
+          res.json({
+            user: user,
+            comment: comment,
+          });
         }
-      );
+      });
     } catch (error) {
       res.send(error);
     }
@@ -211,18 +190,14 @@ module.exports = {
         sex: sex,
       };
       const user = await User.findByIdAndUpdate(id, data, options);
-      const comment = await Comment.updateMany(
-        { id_user: id },
-        { name: name },
-        options
-      );
+      const comment = await Comment.updateMany({ id_user: id }, { name: name }, options);
       res.status(200).json({
-        status: "update success",
+        status: 'update success',
         user: user,
         comment: comment,
       });
     } catch (error) {
-      console.log("error", error);
+      console.log('error', error);
     }
   },
   CHANGE_PASSWORD: async (req, res) => {
@@ -234,7 +209,7 @@ module.exports = {
         const passwordHash = await bcrypt.hash(password, 12);
         await User.findOneAndUpdate({ _id: id }, { password: passwordHash });
         res.status(200).json({
-          message: "Password has been changed successfully",
+          message: 'Password has been changed successfully',
         });
       }
     } catch (err) {
@@ -247,8 +222,7 @@ module.exports = {
       const user = JWT.verify(accessToken, ACTIVATION_TOKEN_SECRET);
       const { email, password, name } = user;
       const checkEmail = await User.findOne({ email: email });
-      if (checkEmail)
-        return res.status(400).json({ message: "tài khoản này tồn tại" });
+      if (checkEmail) return res.status(400).json({ message: 'tài khoản này tồn tại' });
       const userSave = new User({
         _id: new mongoose.Types.ObjectId(),
         name: name.trim(),
@@ -272,11 +246,11 @@ module.exports = {
     try {
       const { email } = req.body;
       const user = await User.findOne({ email: email.toLowerCase().trim() });
-      if (!user) return res.status(400).json({ msg: "Email không tồn tại" });
+      if (!user) return res.status(400).json({ msg: 'Email không tồn tại' });
       const access_token = createAccessToken({ email: email });
       const url = `${CLIENT_URL}/user/reset-password/${access_token}`;
-      sendEmail(email, url, "Click Tạo Mật khẩu mới");
-      res.json({ msg: "tạo mật khẩu mới, Vui lòng kiểm tra email." });
+      sendEmail(email, url, 'Click Tạo Mật khẩu mới');
+      res.json({ msg: 'tạo mật khẩu mới, Vui lòng kiểm tra email.' });
     } catch (error) {
       res.status(400).json({
         message: error,
@@ -288,15 +262,10 @@ module.exports = {
       const { password, accessToken } = req.body;
       const result = JWT.verify(accessToken, ACTIVATION_TOKEN_SECRET);
       const user = await User.findOne({ email: result.email });
-      if (!password)
-        return res.status(400).json({ msg: "Vui lòng nhập mật khẩu" });
-      if (!user)
-        return res.status(400).json({ msg: "tài khoản này không tồn tại" });
+      if (!password) return res.status(400).json({ msg: 'Vui lòng nhập mật khẩu' });
+      if (!user) return res.status(400).json({ msg: 'tài khoản này không tồn tại' });
       const passwordHash = await bcrypt.hash(password, 12);
-      await User.findOneAndUpdate(
-        { email: result.email },
-        { password: passwordHash }
-      );
+      await User.findOneAndUpdate({ email: result.email }, { password: passwordHash });
       const token = await signAccessToken(user._id);
       res.status(200).json({
         user: user,
@@ -310,8 +279,8 @@ module.exports = {
   },
 };
 const createAccessToken = (payload) => {
-  return JWT.sign(payload, ACTIVATION_TOKEN_SECRET, { expiresIn: "15m" });
+  return JWT.sign(payload, ACTIVATION_TOKEN_SECRET, { expiresIn: '15m' });
 };
 const createActivationToken = (payload) => {
-  return JWT.sign(payload, ACTIVATION_TOKEN_SECRET, { expiresIn: "5m" });
+  return JWT.sign(payload, ACTIVATION_TOKEN_SECRET, { expiresIn: '5m' });
 };
