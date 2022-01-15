@@ -11,7 +11,7 @@ const cors = require('cors');
 // SocketIo
 const io = require('socket.io')(sever, {
   cors: {
-    origin: '*',
+    origin: 'https://huy-sneaker-store.netlify.app',
     methods: ['GET', 'POST', 'DELETE', 'PUT'],
     allowedHeaders: [
       'Access-Control-Allow-Origin',
